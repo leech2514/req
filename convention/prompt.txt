@@ -1,0 +1,6 @@
+对文件`e:\project\req\HN\DMS\old_G23_2.sql` 
+1.将这个里面的脚本面的源表根据 `e:\project\req\convention\表名映射关系.md` 进行替换
+2.并优化脚本符合maxcompute执行引擎
+3.读取目标表的ddl文件：
+4.结果输出到 MC 文件名命名为new_G23_2.sql，
+5.其他的可以参考 `e:\project\req\HN\MC\new_G23.sql`

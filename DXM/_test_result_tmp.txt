@@ -1,0 +1,10 @@
+hainandxm  OK, apply_base_info 503407 rows
+ct_dxm     OK, apply_base_info 94939 rows
+demo OK: 39175 rows, 34 cols
+columns: id, recon_date, product_no, apply_no, term, tran_rp_no, repay_time, repay_total_amt, print, int_amt, service_amt, guarantee_amt, margin_amt, compensate_amt, oint_amt, oguarantee_amt, define_amt, adv_define_amt, reduce_print, reduce_int_amt, reduce_service_amt, reduce_guarantee_amt, reduce_margin_amt, reduce_compensate_amt, reduce_oint_amt, reduce_oguarantee_amt, reduce_define_amt, reduce_adv_define_amt, repay_type, reduce_activity_amt, reduce_compliance_amt, remark, create_time, update_time
+    id                 apply_no                  tran_rp_no  term   print int_amt repay_total_amt repay_time repay_type
+656190 CTDXM2025-07-28_00040800 CTDXM2025-07-28_00040800_12    12 2113.62   31.69         2145.31 2026-07-28          1
+656191 CTDXM2025-07-07_00040801 CTDXM2025-07-07_00040801_12    12 1345.87   20.16         1366.03 2026-07-07          1
+656192 CTDXM2025-07-30_00040802 CTDXM2025-07-30_00040802_12    12 1580.68   23.72         1604.40 2026-07-28          1
+656193 CTDXM2025-07-21_00040803 CTDXM2025-07-21_00040803_12    12  252.96    3.74          256.70 2026-07-21          1
+656194 CTDXM2025-07-28_00040804 CTDXM2025-07-28_00040804_12    12 1806.51   27.09         1833.60 2026-07-28          1

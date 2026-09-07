@@ -1,0 +1,46 @@
+/******************************************/
+/*   DatabaseName = test_zxbs_db   */
+/*   TableName = ads_hain_g23_detail   */
+/******************************************/
+CREATE TABLE `ads_hain_g23_detail` (
+  `dbank_id` varchar(100) NOT NULL COMMENT '机构代码',
+  `ddate` date NOT NULL COMMENT '报表日期',
+  `project_name` varchar(64) COMMENT '项目名称',
+  `loan_date` date COMMENT '放款日期',
+  `cont_no` varchar(100) NOT NULL COMMENT '合同编号',
+  `biz_no` varchar(100) NOT NULL COMMENT '业务编号',
+  `cust_id` varchar(100) NOT NULL COMMENT '客户编号',
+  `cust_name` varchar(100) COMMENT '客户名称',
+  `guar_type` varchar(100) COMMENT '担保类型',
+  `biz_mode` varchar(100) COMMENT '业务开展方式',
+  `guar_amt` decimal(20, 2) COMMENT '担保金额',
+  `loan_rate` decimal(20, 6) COMMENT '贷款/债券发行利率',
+  `guar_rate` decimal(20, 6) COMMENT '担保费率',
+  `guar_start` date COMMENT '担保起始日期',
+  `guar_end` date COMMENT '担保到期日期',
+  `mgr_contact` varchar(100) COMMENT '项目经理及联系方式',
+  `policy_flag` varchar(10) COMMENT '是否政策性担保业务',
+  `strategic_flag` varchar(10) COMMENT '是否战略新兴产业',
+  `first_loan_flag` varchar(10) COMMENT '是否首贷户',
+  `fin_inst_code` varchar(100) COMMENT '金融机构编码',
+  `fin_inst_name` varchar(100) COMMENT '金融机构名称',
+  `cust_mgr` varchar(100) COMMENT '经办客户经理',
+  `cust_mgr_tel` varchar(100) COMMENT '客户经理联系方式',
+  `orig_guar_inst` varchar(100) COMMENT '原担保机构',
+  `orig_guar_amt` decimal(20, 2) COMMENT '原担保金额',
+  `orig_guar_rate` decimal(20, 6) COMMENT '原担保费率',
+  `od_flag` varchar(10) COMMENT '是否逾期',
+  `uncomp_amt` decimal(20, 2) COMMENT '尚未履行代偿责任金额',
+  `loss_amt` decimal(20, 2) COMMENT '损失金额',
+  `five_class` varchar(100) COMMENT '五级分类',
+  `counter_type` varchar(100) COMMENT '反担保方式',
+  `counter_code` varchar(100) COMMENT '反担保人编码',
+  `counter_name` varchar(100) COMMENT '反担保人名称',
+  `counter_amt` decimal(20, 2) COMMENT '反担保金额',
+  `rely_net_flag` varchar(10) COMMENT '是否依托互联网开展融资担保业务',
+  `create_time` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+  KEY `pk_sys_cont_no` (`cont_no`),
+  PRIMARY KEY (`cont_no`)
+) DISTRIBUTE BY HASH(`cont_no`) STORAGE_POLICY='HOT' ENGINE='XUANWU_V2' TABLE_PROPERTIES='{"format":"columnstore"}' COMMENT='担保业务明细信息表'
+;
