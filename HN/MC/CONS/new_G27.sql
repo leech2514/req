@@ -2,10 +2,11 @@
 -- 脚本名称: new_G27.sql
 -- 层级:     ADS
 -- 业务域:   海南正堂/担保报送
--- 功能描述: G27 代偿明细月度报送（按还款数据生成代偿明细，排除身份证尾号为5/9的正常还款记录）
--- 源表:     prod_dw_01.dwd_cons_loan_payment_info_incr_delta   （还款计划表，原 rd_cfund.ln_repay_info）
---           prod_dw_01.ods_cons_td_loan_incr_delta              （借据表，原 rd_cfund.ln_loan_info）
---           hain_effective_data_interval                         （有效数据区间配置表，原 test_zxbs_db.hain_effective_data_interval）
+-- 功能描述: G27 代偿明细月度报送（按还款数据生成代偿明细，排除身份证尾号为1/4的正常还款记录）
+-- 源表:     prod_dw_01.dwd_cons_repay_info_incr_delta        （还款明细增量表）
+--           prod_dw_01.dwd_cons_loan_payment_info_incr_delta （还款计划/借据表）
+--           hain_effective_data_interval                      （有效数据区间配置表）
+--           prod_dw_01.dim_base_indiv_info_incr_t             （个人客户维度表，经 indiv_cust_id 关联取身份证号）
 -- 目标表:   ads_hain_g27_comp_detail
 -- 写入模式: MERGE INTO（Delta 主键表，按 comp_seq + cont_no + pt 分区主键更新/插入）
 -- 增量方式: incr（按月度过滤数据）
@@ -18,30 +19,32 @@
 -- 创建日期: 2026-08-26
 -- 修订记录:
 --   2026-08-26  <name>  新建脚本  -  原 DMS old_G27.sql 迁移至 MaxCompute
---   2026-09-07  <name>  优化      -  按 new_G23_2_Part1.sql 范本统一：SET reshuffle；CAST(TO_DATE+LAST_DAY)；CURRENT_TIMESTAMP；动态日期过滤；硬编码分区范围；b.pt 分区裁剪；hain_effective_data_interval 去前缀
+--   2026-09-07  <name>  优化      -  按 new_G23_2_Part1.sql 范本统一：SET reshuffle；CAST(TO_DATE+LAST_DAY)；CURRENT_TIMESTAMP；动态日期过滤；分区裁剪
+--   2026-09-08  <name>  重构      -  按 new_G23_2_Part3.sql 字段命名对齐：apply_no→bill_app_no、repay_time→repay_date；filter_bill 子查询改为平铺 JOIN（b 还款计划表 + e 有效区间 + f 个人维度取身份证）；日期字段统一 repay_date；源表保持不变
 -- 迁移说明（原 old_G27.sql → MC）:
 --   1. 源表按《表名映射关系.md》替换：
---        rd_cfund.ln_repay_info              → prod_dw_01.dwd_cons_loan_payment_info_incr_delta
---        rd_cfund.ln_loan_info               → prod_dw_01.ods_cons_td_loan_incr_delta
+--        rd_cfund.ln_repay_info   → prod_dw_01.dwd_cons_repay_info_incr_delta
+--        rd_cfund.ln_loan_info    → prod_dw_01.dwd_cons_loan_payment_info_incr_delta
 --        test_zxbs_db.hain_effective_data_interval → hain_effective_data_interval
 --   2. RIGHT(str, n) → SUBSTR(str, -n, n)（MC 无 RIGHT 函数）
 --   3. CAST(... AS INTEGER) → CAST(... AS BIGINT)（对齐目标表 xh 字段类型）
 --   4. 移除所有反引号 `` ` ``
 --   5. 写入模式: INSERT INTO → MERGE INTO（Delta 主键表必须用 MERGE）
 --   6. 补 create_time / update_time 字段（DDL 列），用 CURRENT_TIMESTAMP() 赋值
---   7. 补 pt 动态分区列：TO_CHAR(CAST(LAST_DAY(TO_DATE(...)) AS DATE), 'yyyymm')
+--   7. 补 pt 动态分区列：TO_CHAR(CAST(LAST_DAY(TO_DATE(repay_date,...)) AS DATE), 'yyyymm')
 --   8. MERGE ON 条件：t.comp_seq = s.comp_seq AND t.cont_no = s.cont_no AND t.pt = s.pt（分区谓词避免全分区扫描）
---   9. 日期过滤改为动态：LAST_DAY(CAST(info.repay_time AS DATE)) = LAST_DAY(DATEADD(GETDATE(), -1, 'mm'))
+--   9. 日期过滤改为动态：LAST_DAY(CAST(a.repay_date AS DATE)) = LAST_DAY(DATEADD(GETDATE(), -1, 'mm'))
+--  10. 字段名按 Part3 统一：主表关联键用 bill_app_no、日期字段用 repay_date；身份证号经 b.indiv_cust_id 关联 dim_base_indiv_info_incr_t 取 f.id_card
 -- 风险提示:
 --   - 目标表为 Delta 主键表（transactional=true），MERGE ON 必须包含分区谓词 t.pt=s.pt，否则触发全分区扫描报 ODPS-0130071
 --   - hain_effective_data_interval 表若跨 project（prod_bs_dw），需补 schema 前缀
---   - 源表字段 repay_time 应为 STRING（yyyy-mm-dd）格式，CAST AS DATE 后再传入 LAST_DAY
+--   - 源表字段 repay_date 为 STRING（yyyy-mm-dd）格式，CAST AS DATE 后再传入 LAST_DAY
 -- ============================================================================
 
 
 -- ============================================================================
 -- 段1: 代偿明细数据报送
---      逻辑: repay_type = 7（代偿），排除身份证尾号为5/9的记录（按正常还款报送）
+--      逻辑: repay_type = 7（代偿），排除身份证尾号为1/4的记录（按正常还款报送）
 --      产品: ZT-360-ZA00-2507 / ZT-360-ZA01-2508 / ZTJHZT-JH-ZYQDZT-JH-ZYQD00-2509 / HNZT-JZ-ZZRhnzt-jz-zyxj-zgcbk
 -- ============================================================================
 SET odps.sql.reshuffle.dynamicpt = true;
@@ -50,21 +53,21 @@ MERGE INTO ads_hain_g27_comp_detail t
 USING (
     SELECT
         'DEFAULT_BANK'                                              AS dbank_id,     -- 机构代码
-        CAST(LAST_DAY(TO_DATE(info.repay_time, 'yyyy-mm-dd')) AS DATE) AS ddate,        -- 报表日期
+        CAST(LAST_DAY(TO_DATE(a.repay_date, 'yyyy-mm-dd')) AS DATE) AS ddate,        -- 报表日期
         CAST(ROW_NUMBER() OVER () AS BIGINT)                        AS xh,           -- 序号
-        info.apply_no                                               AS cont_no,      -- 合同编号
-        info.apply_no                                               AS biz_no,       -- 业务编号
-        fb.project_name,
+        a.bill_app_no                                               AS cont_no,      -- 合同编号
+        a.bill_app_no                                               AS biz_no,       -- 业务编号
+        e.project_name,                                                              -- 项目名称
         'A'                                                         AS comp_type,    -- 代偿机构类型
-        info.tran_rp_no                                             AS comp_seq,     -- 代偿序号（主键）
-        CAST(TO_DATE(info.repay_time, 'yyyy-mm-dd') AS DATE)        AS comp_date,    -- 代偿日期
-        CAST(info.print AS DECIMAL(20,2))                           AS comp_amt,     -- 本次代偿金额
-        CAST(info.int_amt AS DECIMAL(20,2))                         AS comp_int,     -- 本次代偿利息
-        CURRENT_TIMESTAMP()                                        AS create_time,  -- 创建时间
-        CURRENT_TIMESTAMP()                                        AS update_time,  -- 修改时间
+        a.tran_rp_no                                                AS comp_seq,     -- 代偿序号（主键）
+        CAST(TO_DATE(a.repay_date, 'yyyy-mm-dd') AS DATE)           AS comp_date,    -- 代偿日期
+        CAST(a.print AS DECIMAL(20,2))                              AS comp_amt,     -- 本次代偿金额
+        CAST(a.int_amt AS DECIMAL(20,2))                            AS comp_int,     -- 本次代偿利息
+        CURRENT_TIMESTAMP()                                         AS create_time,  -- 创建时间
+        CURRENT_TIMESTAMP()                                         AS update_time,  -- 修改时间
         -- 动态分区列：按 ddate 所在月份取 yyyymm
         TO_CHAR(CAST(LAST_DAY(TO_DATE(info.repay_time, 'yyyy-mm-dd')) AS DATE), 'yyyymm') AS pt  -- 报表月份 yyyymm
-    FROM prod_dw_01.dwd_cons_loan_payment_info_incr_delta info
+    FROM prod_dw_01.dwd_cons_repay_info_incr_delta info
     INNER JOIN (
         -- filter_bill 子查询：筛选有效数据区间内的借据
         SELECT
@@ -74,7 +77,7 @@ USING (
             l.id_card
         FROM (
             SELECT product_no, apply_no, loan_time, id_card
-            FROM prod_dw_01.ods_cons_td_loan_incr_delta
+            FROM prod_dw_01.dwd_cons_loan_payment_info_incr_delta
             WHERE product_no IN (
                 'ZT-360-ZA00-2507',
                 'ZT-360-ZA01-2508',
@@ -97,8 +100,8 @@ USING (
         )
         AND info.repay_type = 7
         -- 身份证尾号不为5或9的，代偿数据依旧按代偿来报
-        AND SUBSTR(fb.id_card, -1, 1) NOT IN ('5', '9')
-        AND LAST_DAY(CAST(info.repay_time AS DATE)) = LAST_DAY(DATEADD(GETDATE(), -1, 'mm'))
+        AND SUBSTR(fb.id_card, -1, 1) NOT IN ('1', '4')
+        AND LAST_DAY(CAST(info.repay_date AS DATE)) = LAST_DAY(DATEADD(GETDATE(), -1, 'mm'))
         AND info.pt <= '20260831'
         AND info.pt >= '20220101'
         -- AND info.pt <= '${bizmonth}'  -- 排除未来分区（调度参数，编译期分区裁剪）

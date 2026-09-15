@@ -1,22 +1,22 @@
 -- ============================================================================
--- 段3: 君航项目 - 去掉代偿且代偿时间在 2025年9月以后
---      逻辑: repay_type <> 8 排除追偿；repay_type=7（代偿）时间<=2025-08-31 或身份证尾号为5/9按正常还款报送
---      产品: ZTJHZT-JH-ZYQDZT-JH-ZYQD00-2509
+-- 段1: 不需要去掉代偿的项目
+--      逻辑: repay_type <> 8 的还款记录，累计非代偿金额 = 放款金额时 settle_flag='Y'
+--      产品: ZTDFSRL_CYCFC_FL_2 / ZTQSZT-QS-CY102507 / ZTKNchangyin_zhengtang / DXM
 -- ============================================================================
 SET odps.sql.reshuffle.dynamicpt = true;
 
 MERGE INTO ads_hain_g23_2_relieve_detail t
 USING (
     SELECT
-        'DEFAULT_BANK'                                 AS dbank_id,    -- 机构代码
-        CAST(LAST_DAY(TO_DATE(a.repay_time, 'yyyy-mm-dd')) AS DATE)  AS ddate,       -- 报表日期
+        'DEFAULT_BANK'                                  AS dbank_id,    -- 机构代码
+        CAST(LAST_DAY(TO_DATE(a.repay_date, 'yyyy-mm-dd')) AS DATE )   AS ddate,       -- 报表日期
         UUID()                                          AS xh,          -- 序号
         a.tran_rp_no                                    AS relieve_no,  -- 解保编号（主键）
-        a.apply_no                                      AS cont_no,     -- 合同编号
-        a.apply_no                                      AS biz_no,      -- 业务编号
+        a.bill_app_no                                   AS cont_no,     -- 合同编号
+        a.bill_app_no                                   AS biz_no,      -- 业务编号
         'A'                                             AS recv_type,   -- 收回方式
-        CAST(TO_DATE(a.repay_time, 'yyyy-mm-dd') AS DATE)             AS recv_date,   -- 收回日期
-        CAST(a.print AS DECIMAL(20,2))                 AS recv_amt,    -- 收回金额
+        CAST(TO_DATE(a.repay_date, 'yyyy-mm-dd') AS DATE)             AS recv_date,   -- 收回日期
+        CAST(a.print AS DECIMAL(20,2))                  AS recv_amt,    -- 收回金额
 
         -- ★ 结清标识：rn=1 表示该借据最后一笔还款；(loan_amt - 累计非代偿金额)=0 表示已结清
         CASE
@@ -26,46 +26,48 @@ USING (
             ELSE 'N'
         END                                             AS settle_flag, -- 是否结清
 
-        CURRENT_TIMESTAMP()                             AS create_time, -- 创建时间
-        CURRENT_TIMESTAMP()                             AS update_time, -- 修改时间
+        CURRENT_TIMESTAMP()                                       AS create_time, -- 创建时间
+        CURRENT_TIMESTAMP()                                       AS update_time, -- 修改时间
         e.project_name,                                                 -- 项目名称
         -- 动态分区列：按 ddate 所在月份取 yyyymm
-        TO_CHAR(CAST(LAST_DAY(TO_DATE(a.repay_time, 'yyyy-mm-dd')) AS DATE), 'yyyymm')  AS pt  -- 报表月份 yyyymm
+        -- TO_CHAR(LAST_DAY(a.repay_date), 'yyyymm')       AS pt           -- 报表月份 yyyymm
+        TO_CHAR(CAST(LAST_DAY(TO_DATE(a.repay_date, 'yyyy-mm-dd')) AS DATE), 'yyyymm')  AS pt  -- 报表月份 yyyymm
     FROM (
         SELECT
             a.*,
             -- 累计非代偿金额（排除 repay_type=8 追偿）
             SUM(CASE WHEN a.repay_type <> 8 THEN a.print ELSE 0 END)
-                OVER (PARTITION BY a.apply_no ORDER BY a.repay_time, term ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+                OVER (PARTITION BY a.bill_app_no ORDER BY a.repay_date, term ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
                 AS sum_no_cps_print,
             -- 取每个借据最后一笔还款
-            ROW_NUMBER() OVER (PARTITION BY a.apply_no ORDER BY a.repay_time DESC, term DESC) AS rn
-        FROM prod_dw_01.dwd_cons_loan_payment_info_incr_delta a
-        WHERE a.product_no IN ('ZTJHZT-JH-ZYQDZT-JH-ZYQD00-2509')
+            ROW_NUMBER() OVER (PARTITION BY a.bill_app_no ORDER BY a.repay_date DESC, term DESC) AS rn
+        FROM prod_dw_01.dwd_cons_repay_info_incr_delta  a
+        WHERE a.product_no IN (
+            'ZTDFSRL_CYCFC_FL_2',
+            'ZTQSZT-QS-CY102507',
+            'ZTKNchangyin_zhengtang',
+            'DXM'
+        )
           AND a.repay_type <> 8
           AND a.pt <= '20260831'
           AND a.pt >= '20220101'
         --   AND a.pt <= '${bizmonth}'   -- 排除未来分区（调度参数，编译期分区裁剪）
     ) a
-    JOIN prod_dw_01.ods_cons_td_loan_incr_delta b
-        ON a.apply_no = b.bill_app_no
+    JOIN prod_dw_01.dwd_cons_loan_payment_info_incr_delta  b
+        ON a.bill_app_no = b.bill_app_no
     JOIN hain_effective_data_interval e
         ON b.product_no = e.project_code
         AND b.recon_date BETWEEN e.start_date AND e.end_date
-    -- 还款信息报送策略：
-    --      1.2025-09-30 之前不报送代偿和追偿，所有代偿/追偿一律按正常还款报送
-    --      2.2025-09-30 以后的数据正常报送代偿和追偿
-    WHERE
-        -- 排除所有追偿（repay_type = 8）
-        a.repay_type <> 8
-        -- 代偿(repay_type=7)时间在2025年9月30日之前的记录；身份证尾号为5/9的本月代偿按正常报送
-        AND (a.repay_type <> 7 OR a.repay_time <= '2025-08-31'
-              OR SUBSTR(b.id_card, -1, 1) IN ('5', '9')
+    WHERE e.is_use = 'Y'
+        AND b.product_no IN (
+                'ZTDFSRL_CYCFC_FL_2',
+                'ZTQSZT-QS-CY102507',
+                'ZTKNchangyin_zhengtang',
+                'DXM'
             )
-        AND e.is_use = 'Y'
-        AND b.product_no IN ('ZTJHZT-JH-ZYQDZT-JH-ZYQD00-2509')
         AND b.pt <= TO_CHAR(GETDATE(), 'yyyymm')
-        AND LAST_DAY(CAST(a.repay_time AS DATE)) = LAST_DAY(DATEADD(GETDATE(), -1, 'mm'))
+        -- AND LAST_DAY(a.repay_date) = TO_DATE('${bizmonth}', 'yyyyMMdd')
+        AND LAST_DAY(CAST(a.repay_date AS DATE)) = LAST_DAY(DATEADD(GETDATE(), -1, 'mm'))
 ) s
 -- ON 条件包含分区谓词 t.pt=s.pt，避免全分区扫描（ODPS-0130071）
 ON t.relieve_no = s.relieve_no AND t.pt = s.pt

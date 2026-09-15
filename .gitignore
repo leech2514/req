@@ -9,6 +9,9 @@
 .DS_Store
 Thumbs.db
 
+# 业务数据文件（含客户姓名/身份证等 PII，禁止提交到公开仓库）
+*.csv
+
 # 日志与临时文件
 *.log
 *.tmp

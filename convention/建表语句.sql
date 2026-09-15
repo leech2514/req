@@ -1,3 +1,62 @@
+-- ============================================================================
+-- 建表语句目录（供快速定位，行号为本文件内行号）
+-- 统计：共 40 个 CREATE TABLE，38 个唯一表名（011_tmp/012_tmp 各重复定义 1 次）
+-- 说明：[dup] 表示该表在文件中存在重复定义
+-- ============================================================================
+-- 业务管控配置
+--   1. business_control_project_rule                    L62
+--   2. business_control_compensate_rule                 L204
+--   3. business_control_loandate_detail                 L221
+--   4. tmp_req_comp_num                                 L241
+-- 维度表
+--   5. dim_base_prod_info_full_t                        L309
+--   6. dim_base_indiv_info_incr_t                       L372
+--   7. dim_req_supervision_payment_info_incr_delta      L1537
+-- 消金-放款
+--   8. dwd_cons_loan_payment_info_incr_delta            L426
+--   9. ods_fake_cons_loan_info_incr_delta               L1332
+-- 消金-还款
+--  10. dwd_req_cons_repay_info_incr_delta               L93
+--  11. dwd_cons_repay_info_incr_delta                   L472
+--  12. dwd_req_black_cons_repay_info_full_t             L701
+--  13. dwd_req_dummy_cons_repay_info_full_t             L762
+--  14. ods_fake_cons_repay_plan_incr_delta              L1382
+--  15. ods_fake_cons_repay_info_incr_delta              L1458
+-- 消金-还款计划
+--  16. dwd_cons_loan_repay_plan_incr_delta              L823
+-- 消金-还款表现
+--  17. dwd_req_cons_payment_performance_incr_delta      L532
+--  18. dwd_req_cons_payment_performance_incr_delta_003_tmp L574
+--  19. dwd_req_cons_payment_performance_incr_delta_004_tmp L616
+--  20. dwd_req_cons_payment_performance_incr_delta_005_tmp L658
+-- 车贷-放款
+--  21. dwd_auto_oapi_loan_incr_delta                    L258
+-- 车贷-还款
+--  22. dwd_req_auto_oapi_repay_info_delta               L155
+--  23. dwd_req_black_auto_oapi_repay_info_full_t        L1238
+--  24. dwd_req_dummy_auto_oapi_repay_info_full_t        L1284
+-- 车贷-在贷余额/还款
+--  25. dwd_req_auto_balance_repay_info_incr_delta       L975
+--  26. dwd_req_auto_balance_repay_info_incr_delta_007_tmp L1016
+--  27. dwd_req_auto_balance_repay_info_incr_delta_008_tmp L1057
+-- 车贷-还款计划
+--  28. prod_dw_01.dwd_auto_loan_repay_plan_incr_delta   L1096
+-- 模拟数据-消金/车贷 ODS
+--  29. dwd_req_black_fake_loan_repay_info_full_t        L1513
+--  30. ods_fake_auto_loan_info_incr_delta               L1798
+--  31. ods_fake_auto_repay_plan_incr_delta              L1852
+--  32. ods_fake_auto_repay_info_incr_delta              L1917
+--  33. ods_fake_pacb_project_application_incr_delta     L1965
+--  34. ods_fake_pacb_repay_plan_incr_delta              L2011
+-- 模拟数据-线下还款表现
+--  35. dwd_fake_offline_repay_performance_incr_delta    L1599
+--  36. dwd_fake_offline_repay_performance_incr_delta_010_tmp L1648
+--  37. dwd_fake_offline_repay_performance_incr_delta_011_tmp L1697  [dup: L2079]
+--  38. dwd_fake_offline_repay_performance_incr_delta_012_tmp L1746  [dup: L2133]
+--  39. dwd_fake_offline_repay_performance_incr_delta_011_tmp L2079  [dup of #37]
+--  40. dwd_fake_offline_repay_performance_incr_delta_012_tmp L2133  [dup of #38]
+-- ============================================================================
+
 -- 原：business_control_project_rule
 -- 源库：f_prd_spark_db
 CREATE TABLE IF NOT EXISTS business_control_project_rule (
