@@ -51,6 +51,13 @@ e:\project\req\
     │       ├── rollback.sql              # 按主键回滚 INS 插入数据
     │       └── dw_ins_ddl.sql            # INS 目标表 DDL
     │
+    ├── FBHY/                              # 富邦华一银行手工报送（DMS/MySQL 语法，不走上游加工）
+    │   ├── 海南正堂-富邦华一.sql                   # 7 月手工 INSERT（G11/G23/G23_1/G27/G28）
+    │   ├── 海南正堂-富邦华一 8月报送数据.sql        # 8 月手工 INSERT（G11 已注释，客户沿用 7 月）
+    │   ├── g23异常客户号更新.sql                    # 修正历史 4 条异常 cust_id（限定 ddate）
+    │   ├── rollback_海南正堂-富邦华一.sql           # 7 月数据按主键精确回滚
+    │   └── rollback_海南正堂-富邦华一 8月报送数据.sql # 8 月数据按主键精确回滚
+    │
     └── hainanDDL/                        # 目标表 DDL 库
         ├── new_hainanDDL.sql             # 最新统一 DDL（AUTO 报送表基准）
         ├── old_hainanDDL.sql             # 旧版整库 DDL
@@ -83,7 +90,9 @@ e:\project\req\
 
 ### 手工补数
 
-`HN/MC/INS/` 下脚本用于一次性历史数据补录，配套 `rollback.sql` 按主键回滚。
+- `HN/MC/INS/`：一次性历史数据补录，配套 `rollback.sql` 按主键回滚
+- `HN/FBHY/`：富邦华一银行项目无上游放款明细，每月手工 INSERT 报送（G11/G23/G23_1/G27/G28）；
+  配套同名 `rollback_*.sql` 按主键 + ddate 精确回滚；`g23异常客户号更新.sql` 用于修正历史异常 cust_id
 
 ## 安全提示
 
@@ -100,4 +109,4 @@ e:\project\req\
 ---
 
 > 文档创建日期：2026-08-13
-> 最近更新：2026-09-15（重写目录结构以反映实际仓库）
+> 最近更新：2026-09-16（补充 HN/FBHY 富邦华一手工报送目录）
