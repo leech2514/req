@@ -18,31 +18,31 @@
 MERGE INTO dm_req_supervision_finan_province_m t
 USING (
     SELECT
-        t1.`project_no`,
-        t1.`financer_no`,
-        t1.`financer_name`,
-        t1.`platform_no`,
-        t1.`platform_name`,
-        t1.`guarantor_no`,
-        t1.`guarantor_name`,
-        t1.`province_id`,
-        CAST(t1.`term_end_month_cnt` AS BIGINT) AS `term_end_month_cnt`,
-        CAST(COALESCE(t4.`term_rise_cnt`, 0) AS BIGINT) AS `term_rise_cnt`,
-        CAST(t1.`term_down_cnt` AS BIGINT) AS `term_down_cnt`,
-        CAST(COALESCE(t2.`term_start_month_cnt`, 0) AS BIGINT) AS `term_start_month_cnt`,
-        CAST(COALESCE(t2.`term_start_month_amt`, 0.00) AS DECIMAL(17,2)) AS `term_start_month_amt`,
-        CAST(COALESCE(t4.`term_rise_amt`, 0.00) AS DECIMAL(17,2)) AS `term_rise_amt`,
+        month_end.`project_no`,
+        month_end.`financer_no`,
+        month_end.`financer_name`,
+        month_end.`platform_no`,
+        month_end.`platform_name`,
+        month_end.`guarantor_no`,
+        month_end.`guarantor_name`,
+        month_end.`province_id`,
+        CAST(month_end.`term_end_month_cnt` AS BIGINT) AS `term_end_month_cnt`,
+        CAST(COALESCE(month_rise.`term_rise_cnt`, 0) AS BIGINT) AS `term_rise_cnt`,
+        CAST(month_end.`term_down_cnt` AS BIGINT) AS `term_down_cnt`,
+        CAST(COALESCE(month_start.`term_start_month_cnt`, 0) AS BIGINT) AS `term_start_month_cnt`,
+        CAST(COALESCE(month_start.`term_start_month_amt`, 0.00) AS DECIMAL(17,2)) AS `term_start_month_amt`,
+        CAST(COALESCE(month_rise.`term_rise_amt`, 0.00) AS DECIMAL(17,2)) AS `term_rise_amt`,
         GREATEST(
             CAST(
-                COALESCE(t2.`term_start_month_amt`, 0.00)
-                + COALESCE(t4.`term_rise_amt`, 0.00)
-                - COALESCE(t1.`term_end_month_amt`, 0.00)
+                COALESCE(month_start.`term_start_month_amt`, 0.00)
+                + COALESCE(month_rise.`term_rise_amt`, 0.00)
+                - COALESCE(month_end.`term_end_month_amt`, 0.00)
             AS DECIMAL(17,2)),
             0) AS `term_down_amt`,
-        CAST(t1.`term_end_month_amt` AS DECIMAL(17,2)) AS `term_end_month_amt`,
+        CAST(month_end.`term_end_month_amt` AS DECIMAL(17,2)) AS `term_end_month_amt`,
         TO_CHAR(CAST('${obsdt}' AS DATE), 'yyyy-mm') AS `stat_month`
     FROM (
-        /* ================================= t1：期末（${obsdt}）在贷 + 本月减少笔数 ================================= */
+        /* ========================= month_end：期末（${obsdt}）在贷 + 本月减少笔数 ========================= */
         /* ------------------------------------------------ 消金 ------------------------------------------------ */
         SELECT
             a.`project_no`,
@@ -58,10 +58,9 @@ USING (
                      AND LAST_DAY(b.`release_time`) = CAST('${obsdt}' AS DATE),
                      a.`bill_app_no`, NULL)) AS `term_down_cnt`,
             SUM(IF(b.`loan_balance` > 0.00, b.`loan_balance`, 0.00)) AS `term_end_month_amt`
-        FROM dim_req_supervision_payment_info_full_t a
-        JOIN dwd_req_supervision_detail_info_full_t b
+        FROM prod_f_dw.dim_req_supervision_payment_info_full_t a
+        JOIN prod_f_dw.dwd_req_supervision_detail_info_full_t b
             ON  a.`bill_app_no` = b.`bill_app_no`
-            AND a.`product_no`  = b.`product_no`
             AND a.`project_no`  = b.`project_no`
         WHERE a.`loan_day` <= CAST('${obsdt}' AS DATE)
           AND b.`obs_date` = '${obsdt}'
@@ -87,10 +86,9 @@ USING (
                      AND LAST_DAY(b.`release_time`) = CAST('${obsdt}' AS DATE),
                      a.`bill_app_no`, NULL)) AS `term_down_cnt`,
             SUM(IF(b.`loan_balance` > 0.00, b.`loan_balance`, 0.00)) AS `term_end_month_amt`
-        FROM dim_req_supervision_payment_info_full_t a
-        JOIN dwd_req_car_loan_detail_info_full_t b
+        FROM prod_f_dw.dim_req_supervision_payment_info_full_t a
+        JOIN prod_f_dw.dwd_req_car_loan_detail_info_full_t b
             ON  a.`bill_app_no` = b.`bill_app_no`
-            AND a.`product_no`  = b.`product_no`
             AND a.`project_no`  = b.`project_no`
         WHERE a.`loan_day` <= CAST('${obsdt}' AS DATE)
           AND b.`obs_date` = '${obsdt}'
@@ -98,9 +96,9 @@ USING (
             a.`project_no`, a.`guarantor_no`, a.`guarantor_name`,
             a.`province_id`, a.`financer_no`, a.`financer_name`,
             a.`platform_no`, a.`platform_name`
-    ) t1
+    ) month_end
     LEFT JOIN (
-        /* ========================= t2：期初（上月末）在贷笔数/金额 ========================= */
+        /* ========================= month_start：期初（上月末）在贷笔数/金额 ========================= */
         /* ------------------------------------------------ 消金 ------------------------------------------------ */
         SELECT
             a.`project_no`,
@@ -110,13 +108,12 @@ USING (
             a.`platform_no`,
             COUNT(IF(b.`loan_balance` > 0.00, a.`bill_app_no`, NULL)) AS `term_start_month_cnt`,
             SUM(IF(b.`loan_balance` > 0.00, b.`loan_balance`, 0.00)) AS `term_start_month_amt`
-        FROM dim_req_supervision_payment_info_full_t a
-        JOIN dwd_req_supervision_detail_info_full_t b
+        FROM prod_f_dw.dim_req_supervision_payment_info_full_t a
+        JOIN prod_f_dw.dwd_req_supervision_detail_info_full_t b
             ON  a.`bill_app_no` = b.`bill_app_no`
-            AND a.`product_no`  = b.`product_no`
             AND a.`project_no`  = b.`project_no`
-        WHERE a.`loan_day` < TRUNC(CAST('${obsdt}' AS DATE), 'MM')
-          AND b.`obs_date` = TO_CHAR(LAST_DAY(ADD_MONTHS(CAST('${obsdt}' AS DATE), -1)), 'yyyy-mm-dd')
+        WHERE a.`loan_day` < CAST(TO_CHAR(CAST('${obsdt}' AS DATE), 'yyyy-mm-01') AS DATE)
+          AND b.`obs_date` = LAST_DAY(DATEADD(CAST('${obsdt}' AS DATE), -1, 'mm'))
         GROUP BY
             a.`project_no`, a.`guarantor_no`, a.`province_id`,
             a.`financer_no`, a.`platform_no`
@@ -132,24 +129,23 @@ USING (
             a.`platform_no`,
             COUNT(IF(b.`loan_balance` > 0.00, a.`bill_app_no`, NULL)) AS `term_start_month_cnt`,
             SUM(IF(b.`loan_balance` > 0.00, b.`loan_balance`, 0.00)) AS `term_start_month_amt`
-        FROM dim_req_supervision_payment_info_full_t a
-        JOIN dwd_req_car_loan_detail_info_full_t b
+        FROM prod_f_dw.dim_req_supervision_payment_info_full_t a
+        JOIN prod_f_dw.dwd_req_car_loan_detail_info_full_t b
             ON  a.`bill_app_no` = b.`bill_app_no`
-            AND a.`product_no`  = b.`product_no`
             AND a.`project_no`  = b.`project_no`
-        WHERE a.`loan_day` < TRUNC(CAST('${obsdt}' AS DATE), 'MM')
-          AND b.`obs_date` = TO_CHAR(LAST_DAY(ADD_MONTHS(CAST('${obsdt}' AS DATE), -1)), 'yyyy-mm-dd')
+        WHERE a.`loan_day` < CAST(TO_CHAR(CAST('${obsdt}' AS DATE), 'yyyy-mm-01') AS DATE)
+          AND b.`obs_date` = LAST_DAY(DATEADD(CAST('${obsdt}' AS DATE), -1, 'mm'))
         GROUP BY
             a.`project_no`, a.`guarantor_no`, a.`province_id`,
             a.`financer_no`, a.`platform_no`
-    ) t2
-        ON  t1.`project_no`  = t2.`project_no`
-        AND t1.`guarantor_no` = t2.`guarantor_no`
-        AND t1.`province_id`  = t2.`province_id`
-        AND t1.`financer_no`  = t2.`financer_no`
-        AND t1.`platform_no`  = t2.`platform_no`
+    ) month_start
+        ON  month_end.`project_no`  = month_start.`project_no`
+        AND month_end.`guarantor_no` = month_start.`guarantor_no`
+        AND month_end.`province_id`  = month_start.`province_id`
+        AND month_end.`financer_no`  = month_start.`financer_no`
+        AND month_end.`platform_no`  = month_start.`platform_no`
     LEFT JOIN (
-        /* ========================= t4：本月新增放款（仅简版借据） ========================= */
+        /* ========================= month_rise：本月新增放款（仅简版借据） ========================= */
         SELECT
             a.`project_no`,
             a.`guarantor_no`,
@@ -158,18 +154,18 @@ USING (
             a.`platform_no`,
             COUNT(DISTINCT a.`bill_app_no`) AS `term_rise_cnt`,
             SUM(a.`loan_amt`) AS `term_rise_amt`
-        FROM dim_req_supervision_payment_info_full_t a
-        WHERE a.`loan_day` BETWEEN TRUNC(CAST('${obsdt}' AS DATE), 'MM')
+        FROM prod_f_dw.dim_req_supervision_payment_info_full_t a
+        WHERE a.`loan_day` BETWEEN CAST(TO_CHAR(CAST('${obsdt}' AS DATE), 'yyyy-mm-01') AS DATE)
                                AND CAST('${obsdt}' AS DATE)
         GROUP BY
             a.`project_no`, a.`guarantor_no`, a.`province_id`,
             a.`financer_no`, a.`platform_no`
-    ) t4
-        ON  t1.`project_no`  = t4.`project_no`
-        AND t1.`guarantor_no` = t4.`guarantor_no`
-        AND t1.`province_id`  = t4.`province_id`
-        AND t1.`financer_no`  = t4.`financer_no`
-        AND t1.`platform_no`  = t4.`platform_no`
+    ) month_rise
+        ON  month_end.`project_no`  = month_rise.`project_no`
+        AND month_end.`guarantor_no` = month_rise.`guarantor_no`
+        AND month_end.`province_id`  = month_rise.`province_id`
+        AND month_end.`financer_no`  = month_rise.`financer_no`
+        AND month_end.`platform_no`  = month_rise.`platform_no`
 ) s
 ON  t.`financer_no`  = s.`financer_no`
 AND t.`platform_no`  = s.`platform_no`

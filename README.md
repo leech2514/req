@@ -45,11 +45,15 @@ e:\project\req\
     │   ├── CONS/                         # 早期版本归档（按 Part 分片）
     │   │   ├── new_G11.sql  new_G23.sql  new_G23_1.sql
     │   │   ├── new_G23_2_Part1/2/3.sql  new_G27.sql  new_G28.sql
-    │   └── INS/                          # 手工插入与回滚脚本
-    │       ├── ins_G11.sql  ins_G23.sql  rpa.sql
-    │       ├── ins_G11_insert.sql  ins_G23_insert.sql  ins_G23_2_insert.sql  ins_insert.sql
-    │       ├── rollback.sql              # 按主键回滚 INS 插入数据
-    │       └── dw_ins_ddl.sql            # INS 目标表 DDL
+    │   ├── INS/                          # 手工插入与回滚脚本
+    │   │   ├── ins_G11.sql  ins_G23.sql  rpa.sql
+    │   │   ├── ins_G11_insert.sql  ins_G23_insert.sql  ins_G23_2_insert.sql  ins_insert.sql
+    │   │   ├── rollback.sql              # 按主键回滚 INS 插入数据
+    │   │   └── dw_ins_ddl.sql            # INS 目标表 DDL
+    │   └── data_validation/             # 数据校验脚本（MaxCompute 适配）
+    │       ├── g23_amt_diff_check.sql            # 担保金额 - 解保 - 代偿 < 0 异常
+    │       ├── g23_unsettled_diff_check.sql      # 已结清但担保金额仍有剩余
+    │       └── hain_all_rules_check.sql          # RULE_01~06 全套校验合集
     │
     ├── FBHY/                              # 富邦华一银行手工报送（DMS/MySQL 语法，不走上游加工）
     │   ├── 海南正堂-富邦华一.sql                   # 7 月手工 INSERT（G11/G23/G23_1/G27/G28）
@@ -58,10 +62,31 @@ e:\project\req\
     │   ├── rollback_海南正堂-富邦华一.sql           # 7 月数据按主键精确回滚
     │   └── rollback_海南正堂-富邦华一 8月报送数据.sql # 8 月数据按主键精确回滚
     │
+    ├── 月末.txt                           # 报送区间所属月末日期清单（yyyymmdd~yyyymmdd）
+    │
     └── hainanDDL/                        # 目标表 DDL 库
         ├── new_hainanDDL.sql             # 最新统一 DDL（AUTO 报送表基准）
         ├── old_hainanDDL.sql             # 旧版整库 DDL
         ├── old_G11_DDL.sql  old_G23_DDL.sql  old_G23_1.sql
+
+DisplaySystem/                            # 监管展示系统报表加工（MaxCompute）
+├── 建表语句.sql                           # 展示系统目标表统一 DDL
+├── DDL_详版借据.sql                       # 详版借据快照 DDL
+├── DDL_dim_req_supervision_payment_info_full_t.sql  # 简版借据维度 DDL
+├── DDL_dm_req_supervision_finan_province_m.sql      # 资方省份月报 DDL
+├── DDL_dm_req_supervision_finan_province_q.sql       # 资方省份季报 DDL
+├── DDL_dm_req_supervision_project_m.sql              # 项目统计月报 DDL
+├── 资方省份月报.sql / 资方省份月报_加工.sql          # 月报表与加工逻辑
+├── 按资方省份季报.sql / 按资方省份季报_加工.sql      # 季报表与加工逻辑
+├── 按项目统计.sql / 按项目统计_加工.sql              # 项目月报与加工逻辑
+└── DDL.sql                               # 旧版整库 DDL
+
+其他/                                      # 临时/一次性运维脚本（非调度产物）
+├── delete.sql / delete_76.sql             # 按 projectId 清理展示系统/业务管控数据
+├── hainan_farmer.sql / hainan_farmer_update.sql  # 海南农户标记排查与更新（AnalyticDB）
+├── hainan_effective.sql                  # 海南生效数据区间 INSERT（MaxCompute 适配）
+├── ads_hain_g11_cust_info_rebuild.sql    # G11 表重建为事务表以支持 DELETE
+└── 原ddl.sql                              # ads_hain_g11_cust_info 原始 DDL 备份
 ```
 
 ## 核心约定
@@ -109,4 +134,4 @@ e:\project\req\
 ---
 
 > 文档创建日期：2026-08-13
-> 最近更新：2026-09-16（补充 HN/FBHY 富邦华一手工报送目录）
+> 最近更新：2026-10-13（新增 DisplaySystem 展示系统加工、data_validation 数据校验、其他运维脚本目录）
